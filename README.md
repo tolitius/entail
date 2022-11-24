@@ -27,6 +27,7 @@ opts are:
     -v, --verbose        show details of what is run under the hood
     -t, --task           zoom in on logs for a particular nomad job's task
     -l, --log-root       root directory for "entail" to tail or grep logs from
+    -n, --file-name      specific file name to grep
     -g, --grep           a pattern that will be plugged in to "grep -E <pattern>"
 
 example : entail my-job                          ## tail -f logs from all allocations of my-job

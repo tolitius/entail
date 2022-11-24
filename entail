@@ -15,16 +15,17 @@ $ $0 job [opts]
 
 opts are:
 
-    -h, --help           show this usage details
-    -v, --verbose        show details of what is run under the hood
-    -t, --task           zoom in on logs for a particular nomad job's task
-    -l, --log-root       root directory for \"entail\" to tail or grep logs from
-    -g, --grep           a pattern that will be plugged in to \"grep -E <pattern>\"
+  -h, --help           show this usage details
+  -v, --verbose        show details of what is run under the hood
+  -t, --task           zoom in on logs for a particular nomad job's task
+  -l, --log-root       root directory for \"entail\" to tail or grep logs from
+  -n, --file-name      specific file name to grep
+  -g, --grep           a pattern that will be plugged in to \"grep -E <pattern>\"
 
-example : $0 my-job                             ## tail -f logs from all allocations of my-job
-example : $0 my-job -t my-task                  ## if a job has one or more tasks
-example : $0 my-job -f                          ## tail -f
-example : $0 my-job -g \"soft[^[:space:]]+\"      ## grep -E \"soft[^[:space:]]+\"
+example : $0 my-job                           ## tail -f logs from all allocations of my-job
+example : $0 my-job -t my-task                ## if a job has one or more tasks
+example : $0 my-job -f                        ## tail -f
+example : $0 my-job -g \"soft[^[:space:]]+\"    ## grep -E \"soft[^[:space:]]+\"
 
 make sure NOMAD_ADDR and NOMAD_TOKEN are exported/set to point to the correct environment"
 
@@ -33,55 +34,66 @@ job=$1
 # log_root="/opt/app/$job/logs"
 log_root="/alloc/logs"
 
-log_file="$log_root/$job*.log" # TODO: might need a suffix later e.g. ".stdout.1"
-
 ## TODO: add more and cleanup command line args
 if [ "$#" -ne 0 ]; then
-	while [ "$#" -gt 0 ]
-	do
-		case "$1" in
-		-h|--help)
-			echo "$usage"
-			exit 0
-			;;
-		-v|--verbose)
-            verbose="true"
-			;;
-		-l|--log-root)
-            log_root=$2      ## TODO: validate an empty value
-			;;
-		-t|--task)
-            task=$2          ## TODO: validate an empty value
-            with_task="-task $task"
-			;;
-		-g|--grep)
-            with_grep=" grep -E \"$2\" $log_file"  ## TODO: validate empty values
-            shift
-			;;
-		--)
-			break
-			;;
-		-*)
-			echo -e "unsupported option/flag \"$1\".\ntry \"--help\" for available options" >&2
-			exit 1
-			;;
-		*) ;;
-		esac
-		shift
-	done
+  while [ "$#" -gt 0 ]
+  do
+    case "$1" in
+      -h|--help)
+        echo "$usage"
+        exit 0
+        ;;
+      -v|--verbose)
+        verbose="true"
+        ;;
+      -l|--log-root)
+        log_root=$2      ## TODO: validate an empty value
+        ;;
+      -n|--file-name)
+        file_name=$2     ## TODO: validate an empty value
+        ;;
+      -t|--task)
+        task=$2          ## TODO: validate an empty value
+        with_task="-task $task"
+        ;;
+      -g|--grep)
+        grep_pattern=$2
+        shift
+        ;;
+      --)
+        break
+        ;;
+      -*)
+        echo -e "unsupported option/flag \"$1\".\ntry \"--help\" for available options" >&2
+        exit 1
+        ;;
+      *) ;;
+    esac
+    shift
+  done
 else
-	echo "$usage"
-	exit 1
+  echo "$usage"
+  exit 1
 fi
 
 : ${NOMAD_ADDR?"env variable NOMAD_ADDR needs to be set"}
 : ${NOMAD_TOKEN?"env variable NOMAD_TOKEN needs to be set"}
 
-if [ -z "$with_grep" ]
+if [ -z "$grep_pattern" ]
 then
-      nexec="nomad logs -tail -n 99 -f"
+  nexec="nomad logs -tail -n 99 -f"
 else
-      nexec="nomad alloc exec -i"
+  nexec="nomad alloc exec -i"
+
+  if [ -z "$file_name" ]
+  then
+    ## non GNU grep does not have --exclude for hidden files
+    ## "/file*" does not expand over ssh
+    ## hence cd | ls | xargs grep
+    with_grep='sh -c "cd /alloc/logs/ && ls | xargs grep -E \"'$grep_pattern'\""'  ## TODO: validate empty values
+  else
+    with_grep="grep -E \"$grep_pattern\" $log_root/$file_name"
+  fi
 fi
 
 echo "hit ctrl-c to stop"
@@ -92,7 +104,7 @@ versions=( `nomad job allocs -json $job | jq -rn 'inputs[] .TaskStates.'$job'.Ev
 
 echo -------------------------------------------------------------------------------------
 echo -e 'looking at logs for \t ' "\"$job\"" app
-echo -e 'log file \t\t ' $log_file
+echo -e 'log file(s) \t\t ' $log_file
 echo
 echo "                          allocation | version | node client"
 echo -------------------------------------------------------------------------------------
@@ -100,19 +112,22 @@ echo ---------------------------------------------------------------------------
 PIDS=""
 
 for i in "${!allocs[@]}"; do
-   printf "%s |  %s | %s\n" "${allocs[i]}" "${versions[i]}" "${nomad_clients[i]}"
+
+  [ -z "${versions}" ] && version="no tag" || version="${versions[i]}"
+
+  echo "${allocs[i]} |  $version | ${nomad_clients[i]}"
 
 
-   if [ -z "$with_grep" ]
-   then
-     [ ! -z "$verbose" ] && echo "running: $nexec $with_task ${allocs[i]} &"
-     $nexec $with_task ${allocs[i]} &
-   else
-     [ ! -z "$verbose" ] && echo "running: $nexec $with_task ${allocs[i]} $with_grep"
-     eval "$nexec $with_task ${allocs[i]} $with_grep"
-   fi
+  if [ -z "$with_grep" ]
+  then
+    [ ! -z "$verbose" ] && echo "running: $nexec $with_task ${allocs[i]} &"
+    $nexec $with_task ${allocs[i]} &
+  else
+    [ ! -z "$verbose" ] && echo "running: $nexec $with_task ${allocs[i]} $with_grep"
+    eval "$nexec $with_task ${allocs[i]} $with_grep"
+  fi
 
-   PIDS="$PIDS $!"
+  PIDS="$PIDS $!"
 done
 
 echo -------------------------------------------------------------------------------------
