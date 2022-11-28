@@ -104,7 +104,7 @@ versions=( `nomad job allocs -json $job | jq -rn 'inputs[] .TaskStates.'$job'.Ev
 
 echo -------------------------------------------------------------------------------------
 echo -e 'looking at logs for \t ' "\"$job\"" app
-echo -e 'log file(s) \t\t ' $log_file
+echo -e 'logs from \t\t ' $log_root/$file_name
 echo
 echo "                          allocation | version | node client"
 echo -------------------------------------------------------------------------------------

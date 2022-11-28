@@ -47,7 +47,7 @@ $ entail hubble
 hit ctrl-c to stop
 -------------------------------------------------------------------------------------
 looking at logs for       "hubble" app
-log file                  /alloc/logs/hubble.log
+logs from                 /alloc/logs/
 
                           allocation | version | node client
 -------------------------------------------------------------------------------------
@@ -67,11 +67,11 @@ eba351b6-a1f1-3983-bdcb-6e7b8c9f27bd |   v1.42 | nomad-dev-client-i-014af3afd328
 looking for something, a.k.a. grepping (`-g`) inside all the logs of all the allocations of a "hubble" job:
 
 ```bash
-$ entail flow -g "Horsehead"
+$ entail hubble -g "Horsehead"
 hit ctrl-c to stop
 -------------------------------------------------------------------------------------
 looking at logs for       "hubble" app
-log file                  /alloc/logs/hubble.log
+logs from                 /alloc/logs/hubble.log
 
                           allocation | version | node client
 -------------------------------------------------------------------------------------
