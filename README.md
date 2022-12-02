@@ -35,7 +35,10 @@ example : entail my-job -t my-task               ## if a job has one or more tas
 example : entail my-job -l /opt/app/hubble/logs  ## changing a log root directory to tail / grep from
 example : entail my-job -g "soft[^[:space:]]+"   ## grep -E "soft[^[:space:]]+"
 
-make sure NOMAD_ADDR and NOMAD_TOKEN are exported/set to point to the correct environment
+make sure:
+
+* NOMAD_ADDR and NOMAD_TOKEN are exported/set to point to the correct environment
+* "jq" and "nomad" command line programs are installed
 ```
 
 ### tail'em all

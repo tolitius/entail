@@ -1,6 +1,6 @@
 #!/bin/bash
 
-version="0.0.1"
+version="0.1.2"
 
 usage="
 entail $version
@@ -11,7 +11,7 @@ I tail logs from all nomad allocations for a given job
 
 how to play:
 
-$ $0 job [opts]
+$ entail job [opts]
 
 opts are:
 
@@ -27,7 +27,18 @@ example : $0 my-job -t my-task                ## if a job has one or more tasks
 example : $0 my-job -f                        ## tail -f
 example : $0 my-job -g \"soft[^[:space:]]+\"    ## grep -E \"soft[^[:space:]]+\"
 
-make sure NOMAD_ADDR and NOMAD_TOKEN are exported/set to point to the correct environment"
+make sure:
+
+* NOMAD_ADDR and NOMAD_TOKEN are exported/set to point to the correct environment
+* \"jq\" and \"nomad\" command line programs are installed"
+
+check_if_installed() {
+  command -v "$1" >/dev/null 2>&1
+  if [[ $? -ne 0 ]]; then
+    echo "entail needs \"$1\" program to be installed. $2"
+    exit 1
+  fi
+}
 
 job=$1
 
@@ -75,6 +86,9 @@ else
   echo "$usage"
   exit 1
 fi
+
+check_if_installed "jq" "https://stedolan.github.io/jq/download/"
+check_if_installed "nomad" "https://developer.hashicorp.com/nomad/docs/install"
 
 : ${NOMAD_ADDR?"env variable NOMAD_ADDR needs to be set"}
 : ${NOMAD_TOKEN?"env variable NOMAD_TOKEN needs to be set"}
