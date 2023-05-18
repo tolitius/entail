@@ -11,7 +11,7 @@ and allows two basic ops with these logs:
 ```
 $ entail --help
 
-entail 0.0.1
+entail 0.1.3
 ------------
 a.k.a. "nomad tail"
 -------------------
@@ -26,12 +26,14 @@ opts are:
     -h, --help           show this usage details
     -v, --verbose        show details of what is run under the hood
     -t, --task           zoom in on logs for a particular nomad job's task
+    -a, --tail-all       tail -f all files in the allocation: .stdout, .stderr, .anything
     -l, --log-root       root directory for "entail" to tail or grep logs from
     -n, --file-name      specific file name to grep
     -g, --grep           a pattern that will be plugged in to "grep -E <pattern>"
 
 example : entail my-job                          ## tail -f logs from all allocations of my-job
 example : entail my-job -t my-task               ## if a job has one or more tasks
+example : entail my-job -a                       ## tail -f all files from all allocations
 example : entail my-job -l /opt/app/hubble/logs  ## changing a log root directory to tail / grep from
 example : entail my-job -g "soft[^[:space:]]+"   ## grep -E "soft[^[:space:]]+"
 
@@ -98,7 +100,7 @@ started as a [proposal](https://github.com/hashicorp/nomad/issues/10308)<br/>
 
 ## license
 
-Copyright © 2022 tolitius
+Copyright © 2023 tolitius
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.
