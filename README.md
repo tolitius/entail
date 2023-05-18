@@ -1,6 +1,6 @@
 # entail
 
-entails looks logs that are produced by a [nomad job](https://developer.hashicorp.com/nomad/docs/concepts/architecture#job) from _all_ its allocations<br/>
+entail looks at logs that are produced by a [nomad job](https://developer.hashicorp.com/nomad/docs/concepts/architecture#job) from _all_ its allocations<br/>
 and allows two basic ops with these logs:
 
 * tail'em all in one place
