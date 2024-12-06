@@ -124,7 +124,7 @@ echo "hit ctrl-c to stop"
 
 allocs=( `nomad job allocs -json $job | jq -rn 'inputs[] .ID'` )
 nomad_clients=( `nomad job allocs -json $job | jq -rn 'inputs[] .NodeName'` )
-versions=( `nomad job allocs -json $job | jq -rn 'inputs[] .TaskStates.'$job'.Events[] .Details | select(.image) | .image' | cut -d':' -f 2` )
+versions=( `nomad job allocs -json $job | jq -rn 'inputs[] .TaskStates[].Events[] .Details | select(.image) | .image' | cut -d':' -f 2` )
 
 echo -------------------------------------------------------------------------------------
 echo -e 'looking at logs for \t ' "\"$job\"" app
