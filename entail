@@ -1,6 +1,14 @@
 #!/bin/bash
 
-version="0.1.3"
+version="0.1.4"
+
+check_if_installed() {
+  command -v "$1" >/dev/null 2>&1
+  if [[ $? -ne 0 ]]; then
+    echo "entail needs \"$1\" program to be installed. $2"
+    exit 1
+  fi
+}
 
 usage="
 entail $version
@@ -22,25 +30,19 @@ opts are:
   -l, --log-root       root directory for \"entail\" to tail or grep logs from
   -n, --file-name      specific file name to grep
   -g, --grep           a pattern that will be plugged in to \"grep -E <pattern>\"
+  --no-color           disable colorized output (useful when redirecting to files)
 
-example : $0 my-job                           ## tail -f logs from all allocations of my-job
-example : $0 my-job -t my-task                ## if a job has one or more tasks
-example : $0 my-job -a                        ## tail -f all files from all allocations
-example : $0 my-job -l /opt/app/hubble/logs   ## changing a log root directory to tail / grep from
+example : $0 my-job                             ## tail -f logs from all allocations of my-job
+example : $0 my-job -t my-task                  ## if a job has one or more tasks
+example : $0 my-job -a                          ## tail -f all files from all allocations
+example : $0 my-job -l /opt/app/hubble/logs     ## changing a log root directory to tail / grep from
 example : $0 my-job -g \"soft[^[:space:]]+\"    ## grep -E \"soft[^[:space:]]+\"
+example : $0 my-job --no-color                  ## disable colored output (useful for redirecting to files)
 
 make sure:
 
 * NOMAD_ADDR and NOMAD_TOKEN are exported/set to point to the correct environment
 * \"jq\" and \"nomad\" command line programs are installed"
-
-check_if_installed() {
-  command -v "$1" >/dev/null 2>&1
-  if [[ $? -ne 0 ]]; then
-    echo "entail needs \"$1\" program to be installed. $2"
-    exit 1
-  fi
-}
 
 job=$1
 
@@ -76,6 +78,9 @@ if [ "$#" -ne 0 ]; then
         grep_pattern=$2
         shift
         ;;
+      --no-color)
+        no_color="true"
+        ;;
       --)
         break
         ;;
@@ -97,6 +102,69 @@ check_if_installed "nomad" "https://developer.hashicorp.com/nomad/docs/install"
 
 : ${NOMAD_ADDR?"env variable NOMAD_ADDR needs to be set"}
 : ${NOMAD_TOKEN?"env variable NOMAD_TOKEN needs to be set"}
+
+# define color codes for log highlighting
+RED=$(echo -e "\033[1;31m")            # bold red for errors
+YELLOW=$(echo -e "\033[1;38;5;208m")   # bold yellow for warnings
+BLUE=$(echo -e "\033[1;34m")           # bold blue for info
+MAGENTA=$(echo -e "\033[1;35m")        # bold magenta for debug
+CYAN=$(echo -e "\033[1;37m")           # bold cyan for timestamps
+NC=$(echo -e "\033[0m")                # no color (reset)
+
+# add colors to the logs
+
+colorize_log_levels() {
+  sed "
+    s/ERROR /${RED}ERROR${NC}/g
+    s/FAILED/${RED}FAILED${NC}/g
+    s/CRITICAL/${RED}CRITICAL${NC}/g
+    s/FATAL/${RED}FATAL${NC}/g
+    s/WARN /${YELLOW}WARN${NC}/g
+    s/WARNING/${YELLOW}WARNING${NC}/g
+    s/INFO /${BLUE}INFO${NC}/g
+    s/DEBUG/${MAGENTA}DEBUG${NC}/g
+  "
+}
+
+# function to colorize just the timestamps
+# formats supported:
+# - 2025-03-15T23:13:06,725 (comma milliseconds)
+# - 2025-03-15T23:15:39.547Z (period milliseconds with Z)
+# - 2025-03-15 20:10:22 (space separator)
+# - 2025-03-15T20:10:22+01:00 (with timezone)
+colorize_timestamps() {
+  # Most basic approach - use cat with unbuffered output
+  cat -u | while IFS= read -r line; do
+
+    # ISO with comma milliseconds
+    line=$(echo "$line" | sed -E "s/^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2},[0-9]{3})/${CYAN}\1${NC}/g")
+
+    # ISO with period milliseconds and Z
+    line=$(echo "$line" | sed -E "s/^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z)/${CYAN}\1${NC}/g")
+
+    # space separator
+    line=$(echo "$line" | sed -E "s/^([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})/${CYAN}\1${NC}/g")
+
+    # ISO with timezone offset
+    line=$(echo "$line" | sed -E "s/^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{2}:[0-9]{2})/${CYAN}\1${NC}/g")
+    echo "$line"
+  done
+}
+
+colorize_logs() {
+  # return the input unchanged if no_color is set
+  if [ ! -z "$no_color" ]; then
+    cat
+    return
+  fi
+
+  # otherwise apply colorization
+  while IFS= read -r line; do
+    line=$(echo "$line" | colorize_log_levels)
+    line=$(echo "$line" | colorize_timestamps)
+    echo "$line"
+  done
+}
 
 if [ -z "$grep_pattern" ]
 then
@@ -126,12 +194,12 @@ allocs=( `nomad job allocs -json $job | jq -rn 'inputs[] .ID'` )
 nomad_clients=( `nomad job allocs -json $job | jq -rn 'inputs[] .NodeName'` )
 versions=( `nomad job allocs -json $job | jq -rn 'inputs[] .TaskStates[].Events[] .Details | select(.image) | .image' | cut -d':' -f 2` )
 
-echo -------------------------------------------------------------------------------------
-echo -e 'looking at logs for \t ' "\"$job\"" app
-echo -e 'logs from \t\t ' $log_root/$file_name
+echo -e "${CYAN}-------------------------------------------------------------------------------------${NC}"
+echo -e "looking at logs for \t \"${BLUE}$job${NC}\" app"
+echo -e "logs from \t\t $log_root/$file_name"
 echo
-echo "                          allocation | version | node client"
-echo -------------------------------------------------------------------------------------
+echo -e "${CYAN}                          allocation | version | node client${NC}"
+echo -e "${CYAN}-------------------------------------------------------------------------------------${NC}"
 
 PIDS=""
 
@@ -139,13 +207,12 @@ for i in "${!allocs[@]}"; do
 
   [ -z "${versions}" ] && version="no tag" || version="${versions[i]}"
 
-  echo "${allocs[i]} |  $version | ${nomad_clients[i]}"
-
+  echo -e "${allocs[i]} |  ${BLUE}$version${NC} | ${nomad_clients[i]}"
 
   if [ -z "$with_grep" ]
   then
     [ ! -z "$verbose" ] && echo "running: $nexec $with_task ${allocs[i]} $tail_all &"
-    eval "$nexec $with_task ${allocs[i]} $tail_all &"
+    eval "$nexec $with_task ${allocs[i]} $tail_all | colorize_logs &"
   else
     [ ! -z "$verbose" ] && echo "running: $nexec $with_task ${allocs[i]} $with_grep"
     eval "$nexec $with_task ${allocs[i]} $with_grep"
@@ -154,7 +221,7 @@ for i in "${!allocs[@]}"; do
   PIDS="$PIDS $!"
 done
 
-echo -------------------------------------------------------------------------------------
+echo -e "${CYAN}-------------------------------------------------------------------------------------${NC}"
 
 trap 'kill $PIDS' SIGINT
 
