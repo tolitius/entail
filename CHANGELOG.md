@@ -1,3 +1,11 @@
+# 0.1.4
+
+* add colored output for better readability:
+  * colorizes log levels (ERROR, WARN, INFO, DEBUG)
+  * colorizes timestamps in various formats (ISO with milliseconds, with Z, space separator, timezone offset)
+  * colors job name, version and section headers for better visual separation
+  * add `--no-color` option to disable colorization (useful when redirecting output to files)
+
 # 0.1.3
 
 * add "`--tail-all`" (`-a`) to support "`tail -f`" for all files inside "`/alloc/logs/*`":
