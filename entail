@@ -109,7 +109,20 @@ YELLOW=$(echo -e "\033[1;38;5;208m")   # bold yellow for warnings
 BLUE=$(echo -e "\033[1;34m")           # bold blue for info
 MAGENTA=$(echo -e "\033[1;35m")        # bold magenta for debug
 CYAN=$(echo -e "\033[1;37m")           # bold cyan for timestamps
+GREEN=$(echo -e "\033[1;38;5;113m")    # bold green for success
+LIGHT_BLUE=$(echo -e "\033[1;38;5;117m") # light blue for function names
+GRAY=$(echo -e "\033[1;30m")           # gray for keys
+DARK_GRAY=$(echo -e "\\033[1;38;5;247m")      # dark gray for trace ids
 NC=$(echo -e "\033[0m")                # no color (reset)
+
+# configurable trace variables - can be overridden via environment variables
+# default to mulog format
+: ${TRACE_FUNCTION_NAME:="mulog/event-name"}
+: ${TRACE_OUTCOME:="mulog/outcome"}
+: ${TRACE_OUTCOME_OK:=":ok"}
+: ${TRACE_OUTCOME_WARN:=":warn"}
+: ${TRACE_OUTCOME_ERROR:=":error"}
+: ${TRACE_ID:="traceId"}
 
 # add colors to the logs
 
@@ -151,6 +164,32 @@ colorize_timestamps() {
   done
 }
 
+# function to colorize trace formats (mulog, etc.)
+# example:
+# {"tags":{"mulog/event-name":":toolbox.utilities.scheduler/run-scheduled-fn","mulog/outcome":":ok"}}
+colorize_traces() {
+  # escape trace variables for use in regex
+  local function_name_esc=$(echo "$TRACE_FUNCTION_NAME" | sed 's/\//\\\//g')
+  local outcome_esc=$(echo "$TRACE_OUTCOME" | sed 's/\//\\\//g')
+  local outcome_ok_esc=$(echo "$TRACE_OUTCOME_OK" | sed 's/\//\\\//g')
+  local outcome_warn_esc=$(echo "$TRACE_OUTCOME_WARN" | sed 's/\//\\\//g')
+  local outcome_error_esc=$(echo "$TRACE_OUTCOME_ERROR" | sed 's/\//\\\//g')
+  local trace_id_esc=$(echo "$TRACE_ID" | sed 's/\//\\\//g')
+
+  # color function name
+  sed -E "s/(\"$function_name_esc\":)([^,}]*)/${GRAY}\1${NC}${LIGHT_BLUE}\2${NC}/g" |
+
+  # color outcome based on value
+  sed -E "
+    s/(\"$outcome_esc\":)(\"?$outcome_ok_esc\"?)/${GRAY}\1${NC}${GREEN}\2${NC}/g
+    s/(\"$outcome_esc\":)(\"?$outcome_warn_esc\"?)/${GRAY}\1${NC}${YELLOW}\2${NC}/g
+    s/(\"$outcome_esc\":)(\"?$outcome_error_esc\"?)/${GRAY}\1${NC}${RED}\2${NC}/g
+  " |
+
+  # color trace id
+  sed -E "s/(\"$trace_id_esc\":)\"?([^,}\"]+)\"?/${GRAY}\1${NC}${DARK_GRAY}\2${NC}/g"
+}
+
 colorize_logs() {
   # return the input unchanged if no_color is set
   if [ ! -z "$no_color" ]; then
@@ -162,6 +201,7 @@ colorize_logs() {
   while IFS= read -r line; do
     line=$(echo "$line" | colorize_log_levels)
     line=$(echo "$line" | colorize_timestamps)
+    line=$(echo "$line" | colorize_traces)
     echo "$line"
   done
 }

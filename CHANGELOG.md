@@ -5,6 +5,14 @@
   * colorizes timestamps in various formats (ISO with milliseconds, with Z, space separator, timezone offset)
   * colors job name, version and section headers for better visual separation
   * add `--no-color` option to disable colorization (useful when redirecting output to files)
+  * adds special support for structured trace formats (like mulog):
+    * colorizes function/event names in light blue
+    * colorizes outcome values according to status (`:ok` green, `:warn` orange, `:error` red)
+    * configurable via environment variables to support other log formats:
+      * `TRACE_FUNCTION_NAME` (default: "mulog/event-name")
+      * `TRACE_OUTCOME` (default: "mulog/outcome")
+      * `TRACE_ID` (default: "traceId")
+      * `TRACE_OUTCOME_OK`, `TRACE_OUTCOME_WARN`, `TRACE_OUTCOME_ERROR` for status values
 
 # 0.1.3
 
